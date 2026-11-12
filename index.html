@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Budget</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--text:#1a1d23;--mute:#6b7280;--line:#e5e7eb;--acc:#2563eb;--ok:#16a34a;--warn:#d97706;--bad:#dc2626}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--card:#1a1d24;--text:#f1f3f6;--mute:#9aa3b2;--line:#2a2f39;--acc:#5b8cff;--ok:#34d399;--warn:#fbbf24;--bad:#f87171}}
+:root[data-theme="dark"]{--bg:#0f1115;--card:#1a1d24;--text:#f1f3f6;--mute:#9aa3b2;--line:#2a2f39;--acc:#5b8cff;--ok:#34d399;--warn:#fbbf24;--bad:#f87171}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,Arial,sans-serif;padding:14px;max-width:520px;margin:0 auto}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:12px;font-size:16px;font-weight:600}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.big{font-size:30px;font-weight:700}
+.mute{color:var(--mute);font-size:13px}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--ok)}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cat{padding:9px 0;border-top:1px solid var(--line)}
+.cat:first-of-type{border-top:0}
+select,input{width:100%;padding:12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:16px}
+.add{width:100%;padding:13px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:16px;font-weight:600}
+.item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line);gap:8px}
+.item:first-of-type{border-top:0}
+.x{background:none;border:0;color:var(--mute);font-size:20px;padding:4px 8px}
+</style>
+</head>
+<body>
+<div class="tabs"><button id="t-me">Aiden</button><button id="t-her">Morgan</button></div>
+<div class="card"><div class="mute" id="month"></div><div class="big" id="left"></div><div class="mute" id="sub"></div>
+<div class="bar"><i id="totbar"></i></div></div>
+<div class="card"><b>Log a purchase</b><div style="height:8px"></div>
+<select id="cat"></select>
+<input id="amt" type="number" inputmode="decimal" step="0.01" placeholder="Amount ($)">
+<input id="note" type="text" placeholder="Note (optional)">
+<button class="add" id="add">Add</button></div>
+<div class="card" id="cats"></div>
+<div class="card"><b>This month’s purchases</b><div id="list"></div></div>
+<p class="mute">Saved on this device. Totals reset every 2 weeks.</p><button class="add" id="np" style="background:var(--card);color:var(--text);border:1px solid var(--line)">Payday: start new period today</button>
+<script>
+var CFG={
+me:[["Gas",160],["Insurance",200],["Phone",75],["WiFi",40],["Work lunches",50],["Cigarettes",80],["Meds",12.5],["Cat stuff",50],["Personal spending",100]],
+her:[["Groceries",260],["Feminine hygiene",30],["Weed",75],["Personal spending",100]]};
+var KEY="budget-v1",who="me",data={me:[],her:[]};
+try{var s=localStorage.getItem(KEY);if(s)data=JSON.parse(s);}catch(e){}
+try{var w=localStorage.getItem(KEY+"-who");if(w&&CFG[w])who=w;}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+"-who",who);}catch(e){}}
+function $(i){return document.getElementById(i)}
+function money(n){return "$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function esc(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML}
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function parse(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
+var now=new Date(),anchor=iso(now);
+try{var an=localStorage.getItem("budget-anchor");if(an)anchor=an;else localStorage.setItem("budget-anchor",anchor);}catch(e){}
+function period(){var t=new Date(now.getFullYear(),now.getMonth(),now.getDate()),st=parse(anchor),en;
+ while(true){en=new Date(st.getFullYear(),st.getMonth(),st.getDate()+13);if(t<=en)break;st=new Date(st.getFullYear(),st.getMonth(),st.getDate()+14);}
+ return [iso(st),iso(en),st,en]}
+function render(){
+ $("t-me").className=who==="me"?"on":"";$("t-her").className=who==="her"?"on":"";
+ var P=period(),fm={month:"short",day:"numeric"};$("month").textContent=P[2].toLocaleString("en-US",fm)+" – "+P[3].toLocaleString("en-US",fm)+" · "+(who==="me"?"Aiden":"Morgan");
+ var items=(data[who]||[]).filter(function(p){return p.d>=P[0]&&p.d<=P[1]});
+ var tb=0,ts=0,h="",sel=$("cat"),keep=sel.value;
+ sel.innerHTML=CFG[who].map(function(c){return "<option>"+c[0]+"</option>"}).join("");
+ if(keep&&CFG[who].some(function(c){return c[0]===keep}))sel.value=keep;
+ CFG[who].forEach(function(c){
+  var sp=items.filter(function(p){return p.c===c[0]}).reduce(function(a,p){return a+p.a},0);
+  tb+=c[1];ts+=sp;var pct=Math.min(100,sp/c[1]*100),cl=sp>c[1]?"var(--bad)":pct>80?"var(--warn)":"var(--ok)";
+  h+='<div class="cat"><div class="row"><span>'+c[0]+'</span><span><b>'+money(c[1]-sp)+'</b> <span class="mute">left</span></span></div>'+
+  '<div class="mute">'+money(sp)+' of '+money(c[1])+'</div><div class="bar"><i style="width:'+pct+'%;background:'+cl+'"></i></div></div>';
+ });
+ $("cats").innerHTML=h;
+ $("left").textContent=money(tb-ts)+" left";
+ $("left").style.color=ts>tb?"var(--bad)":"var(--text)";
+ $("sub").textContent=money(ts)+" spent of "+money(tb);
+ $("totbar").style.width=Math.min(100,ts/tb*100)+"%";
+ $("list").innerHTML=items.slice().reverse().map(function(p){
+  return '<div class="item"><div><div>'+esc(p.c)+' · <b>'+money(p.a)+'</b></div><div class="mute">'+p.d.slice(5)+(p.n?" · "+esc(p.n):"")+'</div></div><button class="x" data-id="'+p.id+'">✕</button></div>'}).join("")||'<div class="mute">Nothing logged yet.</div>';
+}
+$("np").onclick=function(){anchor=iso(new Date());try{localStorage.setItem("budget-anchor",anchor)}catch(e){}render()};
+$("t-me").onclick=function(){who="me";save();render()};
+$("t-her").onclick=function(){who="her";save();render()};
+$("add").onclick=function(){
+ var a=parseFloat($("amt").value);if(!(a>0)){$("amt").focus();return}
+ var d=new Date(),ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+ data[who].push({id:Date.now(),c:$("cat").value,a:a,n:$("note").value.trim(),d:ds});
+ $("amt").value="";$("note").value="";save();render();
+};
+$("list").onclick=function(e){var id=e.target.getAttribute&&e.target.getAttribute("data-id");
+ if(id){data[who]=data[who].filter(function(p){return String(p.id)!==id});save();render();}};
+render();
+</script>
+</body>
+</html>
